@@ -16,6 +16,7 @@ qt_add_qml_module(appvideoPlayer
     URI videoPlayer
     VERSION 1.0
     QML_FILES Main.qml
+    SOURCES videoplayer.h videoplayer.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -39,3 +40,25 @@ install(TARGETS appvideoPlayer
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# 添加ffmpeg库的目录
+set(FFMPEG_LIB_DIR "${CMAKE_SOURCE_DIR}/third_party/ffmpeg/lib")
+set(FFMPEG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/ffmpeg/include")
+
+# 添加ffmpeg的头文件目录
+include_directories(${FFMPEG_INCLUDE_DIR})
+
+# 查找并链接所有的ffmpeg库
+foreach(LIBRARY_NAME avcodec avdevice avfilter avformat avutil postproc swresample swscale)
+    find_library(${LIBRARY_NAME}_PATH NAMES ${LIBRARY_NAME} PATHS ${FFMPEG_LIB_DIR} NO_DEFAULT_PATH)
+    if(${LIBRARY_NAME}_PATH)
+        target_link_libraries(appvideoPlayer
+            PRIVATE ${${LIBRARY_NAME}_PATH}
+        )
+    else()
+        message(FATAL_ERROR "${LIBRARY_NAME} not found")
+    endif()
+endforeach()
+
+# 确保在构建时能找到ffmpeg库
+link_directories(${FFMPEG_LIB_DIR})
