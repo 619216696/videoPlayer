@@ -21,7 +21,7 @@ public:
 
     ~VideoPlayer();
 
-    Q_INVOKABLE int loadVideo(const QString& filename);
+    Q_INVOKABLE bool loadVideo(const QString& filename);
 
 protected:
     void timerEvent(QTimerEvent* event) override;
@@ -35,9 +35,11 @@ private:
     AVFrame* frame;
     AVPacket* packet;
     QImage image;
-    int fps = 30; // 示例帧率
+    int fps;
+    int video_stream_idx;
 
     void decodeAndRenderNextFrame();
+    void unloadVideo();
 };
 
 #endif // VIDEOPLAYER_H

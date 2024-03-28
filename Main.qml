@@ -11,6 +11,8 @@ Window {
 
     VideoPlayer {
         id: videoPlayer
+        height: 300
+        width: 300
     }
 
     Button {
