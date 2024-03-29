@@ -7,12 +7,12 @@ Window {
     width: 640
     height: 480
     visible: true
-    title: qsTr("Hello World")
+    title: qsTr("VPlayer")
 
     VideoPlayer {
         id: videoPlayer
-        height: 300
-        width: 300
+        height: parent.height
+        width: parent.width
     }
 
     Button {

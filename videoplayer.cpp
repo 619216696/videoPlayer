@@ -1,4 +1,56 @@
 #include "videoplayer.h"
+#include <QDebug>
+#include <QDateTime>
+#include <QPainter>
+
+DecoderThread::DecoderThread(QObject *parent) : QThread(parent), fmt_ctx(nullptr), dec_ctx(nullptr), sws_ctx(nullptr), video_stream_idx(-1) {}
+
+void DecoderThread::setup(AVFormatContext *fmt_ctx, AVCodecContext *dec_ctx, SwsContext *sws_ctx, int video_stream_idx) {
+    this->fmt_ctx = fmt_ctx;
+    this->dec_ctx = dec_ctx;
+    this->sws_ctx = sws_ctx;
+    this->video_stream_idx = video_stream_idx;
+}
+
+void DecoderThread::run() {
+    AVFrame *frame = av_frame_alloc();
+    AVPacket *packet = av_packet_alloc();
+
+    // 获取视频流的时间基准
+    AVRational timeBase = fmt_ctx->streams[video_stream_idx]->time_base;
+
+    qint64 startTime = av_gettime(); // 获取当前时间
+
+    while (av_read_frame(fmt_ctx, packet) >= 0) {
+        if (packet->stream_index == video_stream_idx) {
+            avcodec_send_packet(dec_ctx, packet);
+            if (avcodec_receive_frame(dec_ctx, frame) == 0) {
+                // 计算帧的显示时间
+                qint64 pts = frame->best_effort_timestamp;
+                qint64 frameTime = av_rescale_q(pts, timeBase, AV_TIME_BASE_Q);
+
+                // 控制播放速度
+                qint64 now = av_gettime() - startTime;
+                qint64 delay = frameTime - now;
+                if (delay > 0) {
+                    av_usleep(delay);
+                }
+
+                AVFrame *frameRGBA = av_frame_alloc();
+                int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
+                uint8_t *buffer = (uint8_t *)av_malloc(numBytes * sizeof(uint8_t));
+                av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
+                sws_scale(sws_ctx, (uint8_t const * const *)frame->data, frame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
+                QImage img((uchar*)buffer, dec_ctx->width, dec_ctx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
+                emit frameReady(img.copy());
+                av_frame_free(&frameRGBA);
+            }
+        }
+        av_packet_unref(packet);
+    }
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+}
 
 VideoPlayer::VideoPlayer(QQuickItem* parent)
     : QQuickPaintedItem(parent)
@@ -7,9 +59,9 @@ VideoPlayer::VideoPlayer(QQuickItem* parent)
     , sws_ctx(nullptr)
     , frame(nullptr)
     , packet(nullptr)
-    , fps(0)
     , video_stream_idx(-1) {
-
+    connect(&decoderThread, &DecoderThread::frameReady, this, &VideoPlayer::onFrameReady);
+    connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
 }
 
 VideoPlayer::~VideoPlayer() {
@@ -73,10 +125,6 @@ bool VideoPlayer::loadVideo(const QString& filePath) {
     frame = av_frame_alloc();
     packet = av_packet_alloc();
 
-    // 获取帧率信息（假设默认第一帧有效）
-    fps = static_cast<int>(fmt_ctx->streams[video_stream_idx]->avg_frame_rate.num /
-                           fmt_ctx->streams[video_stream_idx]->avg_frame_rate.den);
-
     // 创建并初始化SwsContext
     sws_ctx = sws_getCachedContext(
         nullptr,                  // 可以传入已有的SwsContext指针，这里我们创建新的
@@ -95,24 +143,24 @@ bool VideoPlayer::loadVideo(const QString& filePath) {
         return false;
     }
 
-    // 设置定时器更新画面
-    startTimer(1000 / fps); // fps假设是从视频流信息获取到的帧率
+    // 设置解码线程的上下文
+    decoderThread.setup(fmt_ctx, dec_ctx, sws_ctx, video_stream_idx);
+    emit startDecoding(); // 开始解码线程
 
     return true;
 }
 
 void VideoPlayer::unloadVideo()
 {
+    if (decoderThread.isRunning()) {
+        decoderThread.requestInterruption();
+        decoderThread.wait();
+    }
     if (fmt_ctx) avformat_close_input(&fmt_ctx);
     if (dec_ctx) avcodec_free_context(&dec_ctx);
     if (sws_ctx) sws_freeContext(sws_ctx);
     if (frame) av_frame_free(&frame);
     if (packet) av_packet_free(&packet);
-}
-
-void VideoPlayer::timerEvent(QTimerEvent* event) {
-    decodeAndRenderNextFrame();
-    update();
 }
 
 void VideoPlayer::paint(QPainter* painter) {
@@ -121,36 +169,11 @@ void VideoPlayer::paint(QPainter* painter) {
     painter->drawImage(boundingRect(), image);
 }
 
-void VideoPlayer::decodeAndRenderNextFrame() {
-    // 从文件读取包并解码
-    if (av_read_frame(fmt_ctx, packet) >= 0 && packet->stream_index == video_stream_idx) {
-        avcodec_send_packet(dec_ctx, packet);
-        avcodec_receive_frame(dec_ctx, frame);
+void VideoPlayer::onFrameReady(QImage frame) {
+    image = frame;
+    update(); // 触发重绘
+}
 
-        // 创建用于转换的目标帧
-        AVFrame *frame_rgba = av_frame_alloc();
-        frame_rgba->width = frame->width;
-        frame_rgba->height = frame->height;
-        frame_rgba->format = AV_PIX_FMT_RGBA;
-        if (av_frame_get_buffer(frame_rgba, 0) < 0) {
-            qCritical() << "Failed to allocate memory for the converted frame";
-            av_frame_free(&frame_rgba);
-            return;
-        }
-
-        // 进行帧格式转换
-        sws_scale(
-            sws_ctx,
-            (const uint8_t *const*)frame->data, frame->linesize,
-            0, frame->height,
-            frame_rgba->data, frame_rgba->linesize
-            );
-
-        // 创建QImage并设置数据
-        image = QImage((uchar*)frame_rgba->data[0], frame_rgba->width, frame_rgba->height, frame_rgba->linesize[0], QImage::Format_RGBA8888);
-
-        // 这里假设已经在image上添加了水印，实际情况请自行实现
-
-        av_frame_free(&frame_rgba);
-    }
+void VideoPlayer::startDecoderThread() {
+    decoderThread.start(); // 使用默认优先级启动线程
 }
