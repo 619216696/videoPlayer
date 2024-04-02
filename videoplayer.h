@@ -5,6 +5,8 @@
 #include <QImage>
 #include <QPainter>
 #include <QThread>
+#include <QAudioOutput>
+#include <QAudioSink>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -13,23 +15,32 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libavutil/rational.h>
 #include <libavutil/time.h>
+#include <libswresample/swresample.h>
 }
 
 class DecoderThread : public QThread {
     Q_OBJECT
 public:
-    DecoderThread(QObject *parent = nullptr);
+    DecoderThread(QObject* parent = nullptr);
+    ~DecoderThread();
+
     void run() override;
-    void setup(AVFormatContext *fmt_ctx, AVCodecContext *dec_ctx, SwsContext *sws_ctx, int video_stream_idx);
+    bool setup(AVFormatContext* fmt_ctx, AVCodecContext* video_dec_ctx, int video_stream_idx, AVCodecContext* audio_dec_ctx, int audio_stream_idx, SwsContext* sws_ctx);
 
 signals:
     void frameReady(QImage frame);
 
 private:
-    AVFormatContext *fmt_ctx;
-    AVCodecContext *dec_ctx;
-    SwsContext *sws_ctx;
+    AVFormatContext* fmt_ctx;
+    AVCodecContext* video_dec_ctx;
+    AVCodecContext* audio_dec_ctx;
+    SwsContext* sws_ctx;
+    SwrContext* swr_ctx;
     int video_stream_idx;
+    int audio_stream_idx;
+    QAudioOutput* audioOutput;
+    QIODevice* audioDevice;
+    QAudioSink* audioSink;
 };
 
 class VideoPlayer : public QQuickPaintedItem {
@@ -56,9 +67,11 @@ private slots:
 
 private:
     AVFormatContext* fmt_ctx;
-    AVCodecContext* dec_ctx;
+    AVCodecContext* video_dec_ctx;
+    AVCodecContext* audio_dec_ctx;
     SwsContext* sws_ctx;
     int video_stream_idx;
+    int audio_stream_idx;
     QImage image;
     DecoderThread decoderThread;
 };
