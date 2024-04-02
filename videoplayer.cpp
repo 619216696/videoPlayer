@@ -21,7 +21,7 @@ void DecoderThread::run() {
 
     qint64 startTime = av_gettime(); // 获取当前时间
 
-    while (av_read_frame(fmt_ctx, packet) >= 0) {
+    while (av_read_frame(fmt_ctx, packet) == 0) {
         if (packet->stream_index == video_stream_idx) {
             avcodec_send_packet(dec_ctx, packet);
             if (avcodec_receive_frame(dec_ctx, frame) == 0) {
@@ -40,7 +40,7 @@ void DecoderThread::run() {
                 int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
                 uint8_t *buffer = (uint8_t *)av_malloc(numBytes * sizeof(uint8_t));
                 av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
-                sws_scale(sws_ctx, (uint8_t const * const *)frame->data, frame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
+                sws_scale(sws_ctx, frame->data, frame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
                 QImage img((uchar*)buffer, dec_ctx->width, dec_ctx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
                 emit frameReady(img.copy());
                 av_frame_free(&frameRGBA);
@@ -57,8 +57,6 @@ VideoPlayer::VideoPlayer(QQuickItem* parent)
     , fmt_ctx(nullptr)
     , dec_ctx(nullptr)
     , sws_ctx(nullptr)
-    , frame(nullptr)
-    , packet(nullptr)
     , video_stream_idx(-1) {
     connect(&decoderThread, &DecoderThread::frameReady, this, &VideoPlayer::onFrameReady);
     connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
@@ -121,10 +119,6 @@ bool VideoPlayer::loadVideo(const QString& filePath) {
         return false;
     }
 
-    // 初始化帧和包
-    frame = av_frame_alloc();
-    packet = av_packet_alloc();
-
     // 创建并初始化SwsContext
     sws_ctx = sws_getCachedContext(
         nullptr,                  // 可以传入已有的SwsContext指针，这里我们创建新的
@@ -159,8 +153,6 @@ void VideoPlayer::unloadVideo()
     if (fmt_ctx) avformat_close_input(&fmt_ctx);
     if (dec_ctx) avcodec_free_context(&dec_ctx);
     if (sws_ctx) sws_freeContext(sws_ctx);
-    if (frame) av_frame_free(&frame);
-    if (packet) av_packet_free(&packet);
 }
 
 void VideoPlayer::paint(QPainter* painter) {

@@ -58,10 +58,8 @@ private:
     AVFormatContext* fmt_ctx;
     AVCodecContext* dec_ctx;
     SwsContext* sws_ctx;
-    AVFrame* frame;
-    AVPacket* packet;
-    QImage image;
     int video_stream_idx;
+    QImage image;
     DecoderThread decoderThread;
 };
 
