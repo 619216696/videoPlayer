@@ -33,9 +33,8 @@ bool DecoderThread::setup(AVFormatContext* fmt_ctx, AVCodecContext* video_dec_ct
     format.setSampleFormat(QAudioFormat::Int16);
 
     // 初始化SwrContext
-    AVChannelLayout outChannelLayout;
-    outChannelLayout.nb_channels = 2;
-    if (swr_alloc_set_opts2(&swr_ctx, &outChannelLayout, AV_SAMPLE_FMT_S16, 48000, &audio_dec_ctx->ch_layout, audio_dec_ctx->sample_fmt, audio_dec_ctx->sample_rate, 0, nullptr) != 0) {
+    AVChannelLayout outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
+    if (swr_alloc_set_opts2(&swr_ctx, &outChannelLayout, AV_SAMPLE_FMT_S16, audio_dec_ctx->sample_rate, &audio_dec_ctx->ch_layout, audio_dec_ctx->sample_fmt, audio_dec_ctx->sample_rate, 0, nullptr) != 0) {
         qCritical() << "Failed to initialize SwrContext";
         return false;
     }
@@ -64,7 +63,7 @@ void DecoderThread::run() {
     AVPacket* packet = av_packet_alloc();
 
     // 获取视频流的时间基准
-    AVRational timeBase = fmt_ctx->streams[video_stream_idx]->time_base;
+    AVRational videoTimeBase = fmt_ctx->streams[video_stream_idx]->time_base;
 
     qint64 startTime = av_gettime(); // 获取当前时间
 
@@ -74,7 +73,7 @@ void DecoderThread::run() {
             if (avcodec_receive_frame(video_dec_ctx, frame) == 0) {
                 // 计算帧的显示时间
                 qint64 pts = frame->best_effort_timestamp;
-                qint64 frameTime = av_rescale_q(pts, timeBase, AV_TIME_BASE_Q);
+                qint64 frameTime = av_rescale_q(pts, videoTimeBase, AV_TIME_BASE_Q);
 
                 // 控制播放速度
                 qint64 now = av_gettime() - startTime;
@@ -95,17 +94,6 @@ void DecoderThread::run() {
         } else if (packet->stream_index == audio_stream_idx) {
             avcodec_send_packet(audio_dec_ctx, packet);
             if (avcodec_receive_frame(audio_dec_ctx, frame) == 0) {
-                // 计算帧的显示时间
-                qint64 pts = frame->best_effort_timestamp;
-                qint64 frameTime = av_rescale_q(pts, timeBase, AV_TIME_BASE_Q);
-
-                // 控制播放速度
-                qint64 now = av_gettime() - startTime;
-                qint64 delay = frameTime - now;
-                if (delay > 0) {
-                    av_usleep(delay);
-                }
-
                 // 音频帧转换
                 const int out_samples = av_rescale_rnd(swr_get_delay(swr_ctx, audio_dec_ctx->sample_rate) + frame->nb_samples, audio_dec_ctx->sample_rate, audio_dec_ctx->sample_rate, AV_ROUND_UP);
                 uint8_t* out_buf = nullptr;
