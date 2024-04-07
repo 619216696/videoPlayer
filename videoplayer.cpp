@@ -30,11 +30,11 @@ bool DecoderThread::setup(AVFormatContext* fmt_ctx, AVCodecContext* video_dec_ct
     format.setSampleRate(audio_dec_ctx->sample_rate);
     format.setChannelCount(audio_dec_ctx->ch_layout.nb_channels);
     // 设置音频样本格式
-    format.setSampleFormat(QAudioFormat::Int16);
+    format.setSampleFormat(QAudioFormat::Float);
 
     // 初始化SwrContext
     AVChannelLayout outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
-    if (swr_alloc_set_opts2(&swr_ctx, &outChannelLayout, AV_SAMPLE_FMT_S16, audio_dec_ctx->sample_rate, &audio_dec_ctx->ch_layout, audio_dec_ctx->sample_fmt, audio_dec_ctx->sample_rate, 0, nullptr) != 0) {
+    if (swr_alloc_set_opts2(&swr_ctx, &outChannelLayout, AV_SAMPLE_FMT_FLT, audio_dec_ctx->sample_rate, &audio_dec_ctx->ch_layout, audio_dec_ctx->sample_fmt, audio_dec_ctx->sample_rate, 0, nullptr) != 0) {
         qCritical() << "Failed to initialize SwrContext";
         return false;
     }
@@ -64,6 +64,7 @@ void DecoderThread::run() {
 
     // 获取视频流的时间基准
     AVRational videoTimeBase = fmt_ctx->streams[video_stream_idx]->time_base;
+    AVRational audioTimeBase = fmt_ctx->streams[audio_stream_idx]->time_base;
 
     qint64 startTime = av_gettime(); // 获取当前时间
 
@@ -94,14 +95,25 @@ void DecoderThread::run() {
         } else if (packet->stream_index == audio_stream_idx) {
             avcodec_send_packet(audio_dec_ctx, packet);
             if (avcodec_receive_frame(audio_dec_ctx, frame) == 0) {
+                // 计算帧的播放时间
+                qint64 pts = frame->best_effort_timestamp;
+                qint64 frameTime = av_rescale_q(pts, audioTimeBase, AV_TIME_BASE_Q);
+
+                // 控制播放速度
+                qint64 now = av_gettime() - startTime;
+                qint64 delay = frameTime - now;
+                if (delay > 0) {
+                    av_usleep(delay);
+                }
+
                 // 音频帧转换
                 const int out_samples = av_rescale_rnd(swr_get_delay(swr_ctx, audio_dec_ctx->sample_rate) + frame->nb_samples, audio_dec_ctx->sample_rate, audio_dec_ctx->sample_rate, AV_ROUND_UP);
                 uint8_t* out_buf = nullptr;
-                av_samples_alloc(&out_buf, nullptr, 2, out_samples, AV_SAMPLE_FMT_S16, 0);
+                av_samples_alloc(&out_buf, nullptr, 2, out_samples, AV_SAMPLE_FMT_FLT, 0);
                 int frame_count = swr_convert(swr_ctx, &out_buf, out_samples, (const uint8_t**)frame->data, frame->nb_samples);
 
                 if (frame_count > 0) {
-                    int out_buf_size = av_samples_get_buffer_size(nullptr, 2, frame_count, AV_SAMPLE_FMT_S16, 0);
+                    int out_buf_size = av_samples_get_buffer_size(nullptr, 2, frame_count, AV_SAMPLE_FMT_FLT, 0);
                     QByteArray buffer(reinterpret_cast<char*>(out_buf), out_buf_size);
                     audioDevice->write(buffer);
                 }
