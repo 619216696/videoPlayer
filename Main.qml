@@ -27,7 +27,7 @@ Window {
         nameFilters: ["*.mp4", "*.avi", "*.mkv", "*"]
         onAccepted: {
             console.log("Selected file: " + fileDialog.file)
-            videoPlayer.loadVideo(fileDialog.file)
+            videoPlayer.loadVideo(fileDialog.file, true)
         }
     }
 }

@@ -3,10 +3,7 @@
 
 #include <QQuickPaintedItem>
 #include <QImage>
-#include <QPainter>
-#include <QThread>
-#include <QAudioOutput>
-#include <QAudioSink>
+#include "decoder.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -18,45 +15,16 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
-class DecoderThread : public QThread {
-    Q_OBJECT
-public:
-    DecoderThread(QObject* parent = nullptr);
-    ~DecoderThread();
-
-    void run() override;
-    bool setup(AVFormatContext* fmt_ctx, AVCodecContext* video_dec_ctx, int video_stream_idx, AVCodecContext* audio_dec_ctx, int audio_stream_idx, SwsContext* sws_ctx);
-
-signals:
-    void frameReady(QImage frame);
-
-private:
-    AVFormatContext* fmt_ctx;
-    AVCodecContext* video_dec_ctx;
-    AVCodecContext* audio_dec_ctx;
-    SwsContext* sws_ctx;
-    SwrContext* swr_ctx;
-    int video_stream_idx;
-    int audio_stream_idx;
-    QAudioOutput* audioOutput;
-    QIODevice* audioDevice;
-    QAudioSink* audioSink;
-};
-
 class VideoPlayer : public QQuickPaintedItem {
     Q_OBJECT
 public:
     VideoPlayer(QQuickItem* parent = nullptr);
-
     ~VideoPlayer();
 
-    Q_INVOKABLE bool loadVideo(const QString& filename);
+    Q_INVOKABLE bool loadVideo(const QString& filename, bool hw = false);
 
 protected:
     void paint(QPainter* painter) override;
-
-private:
-    void unloadVideo();
 
 signals:
     void startDecoding();
@@ -66,14 +34,8 @@ private slots:
     void startDecoderThread();
 
 private:
-    AVFormatContext* fmt_ctx;
-    AVCodecContext* video_dec_ctx;
-    AVCodecContext* audio_dec_ctx;
-    SwsContext* sws_ctx;
-    int video_stream_idx;
-    int audio_stream_idx;
-    QImage image;
     DecoderThread decoderThread;
+    QImage image;
 };
 
 #endif // VIDEOPLAYER_H
