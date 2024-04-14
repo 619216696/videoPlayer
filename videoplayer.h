@@ -5,16 +5,6 @@
 #include <QImage>
 #include "decoder.h"
 
-extern "C" {
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libswscale/swscale.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/rational.h>
-#include <libavutil/time.h>
-#include <libswresample/swresample.h>
-}
-
 class VideoPlayer : public QQuickPaintedItem {
     Q_OBJECT
 public:
