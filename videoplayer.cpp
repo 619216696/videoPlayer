@@ -3,14 +3,18 @@
 #include <QPainter>
 
 VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
-    connect(&decoderThread, &DecoderThread::videoFrameReady, this, &VideoPlayer::onFrameReady);
+    connect(&videoDecoder, &VideoDecoder::frameReady, this, &VideoPlayer::onFrameReady);
     connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
 }
 
 VideoPlayer::~VideoPlayer() {
-    if (decoderThread.isRunning()) {
-        decoderThread.requestInterruption();
-        decoderThread.wait();
+    if (audioDecoder.isRunning()) {
+        audioDecoder.requestInterruption();
+        audioDecoder.wait();
+    }
+    if (videoDecoder.isRunning()) {
+        videoDecoder.requestInterruption();
+        videoDecoder.wait();
     }
 }
 
@@ -19,13 +23,17 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
     QString localPath = fileUrl.toLocalFile();
     qDebug() << "loadVideo path: " << localPath;
 
-    DecoderInitParams params(localPath, useHw);
-
     // 设置解码线程的上下文
-    if (!decoderThread.init(params)) {
-        qCritical() << "Decoder thread init failed";
+    if (!videoDecoder.init(localPath, useHw)) {
+        qCritical() << "video decoder thread init failed";
         return false;
     }
+
+    if (!audioDecoder.init(localPath)) {
+        qCritical() << "audio decoder thread init failed";
+        return false;
+    }
+
     // 开始线程解码
     emit startDecoding();
     return true;
@@ -45,5 +53,6 @@ void VideoPlayer::onFrameReady(QImage frame) {
 
 void VideoPlayer::startDecoderThread() {
     // 使用默认优先级启动线程
-    decoderThread.start();
+    videoDecoder.start();
+    audioDecoder.start();
 }

@@ -3,7 +3,8 @@
 
 #include <QQuickPaintedItem>
 #include <QImage>
-#include "decoder.h"
+#include "videoDecoder.h"
+#include "audioDecoder.h"
 
 class VideoPlayer : public QQuickPaintedItem {
     Q_OBJECT
@@ -24,7 +25,8 @@ private slots:
     void startDecoderThread();
 
 private:
-    DecoderThread decoderThread;
+    VideoDecoder videoDecoder;
+    AudioDecoder audioDecoder;
     QImage image;
 };
 
