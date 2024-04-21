@@ -9,6 +9,7 @@ VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
     connect(this, &VideoPlayer::play, &audioDecoder, &AudioDecoder::play);
     connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
     connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
+    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, &videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
 }
 
 VideoPlayer::~VideoPlayer() {

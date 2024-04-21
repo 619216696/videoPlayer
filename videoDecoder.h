@@ -27,12 +27,14 @@ signals:
 public slots:
     void play() override;
     void stop() override;
+    void audioFrameTimeUpdate(qint64 frameTime);
 
 private:
     QString uri = "";
     bool useHw = false;
     AVBufferRef* hw_device_ctx = nullptr;
     SwsContext* sws_ctx = nullptr;
+    qint64 audioFrameTime = 0;
 };
 
 #endif // VIDEODECODER_H

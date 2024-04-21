@@ -113,18 +113,12 @@ void VideoDecoder::run() {
 
     // 获取视频流的时间基准
     AVRational videoTimeBase = fmt_ctx->streams[stream_idx]->time_base;
-    // 获取当前时间
-    qint64 startTime = av_gettime();
 
     while (av_read_frame(fmt_ctx, packet) == 0) {
         // 播放暂停控制
         while (!playing) {
-            // 记录暂停的时间
-            qint64 stopTime = av_gettime();
             std::unique_lock<std::mutex> lock(mutex);
             cv.wait(lock, [this]{ return this->playing; });
-            // 将暂停的时间进行补偿
-            startTime += (av_gettime() - stopTime);
         }
 
         if (packet->stream_index == stream_idx) {
@@ -132,11 +126,9 @@ void VideoDecoder::run() {
             if (avcodec_receive_frame(dec_ctx, frame) == 0) {
                 // 计算帧的显示时间
                 qint64 pts = frame->best_effort_timestamp;
-                qint64 frameTime = av_rescale_q(pts, videoTimeBase, AV_TIME_BASE_Q);
+                frameTime = av_rescale_q(pts, videoTimeBase, AV_TIME_BASE_Q);
 
-                // 控制播放速度
-                qint64 now = av_gettime() - startTime;
-                qint64 delay = frameTime - now;
+                qint64 delay = frameTime - audioFrameTime;
                 if (delay > 0) {
                     av_usleep(delay);
                 }
@@ -176,4 +168,8 @@ void VideoDecoder::play() {
 
 void VideoDecoder::stop() {
     playing = false;
+}
+
+void VideoDecoder::audioFrameTimeUpdate(qint64 frameTime) {
+    audioFrameTime = frameTime;
 }

@@ -123,7 +123,8 @@ void AudioDecoder::run() {
             if (avcodec_receive_frame(dec_ctx, frame) == 0) {
                 // 计算帧的播放时间
                 qint64 pts = frame->best_effort_timestamp;
-                qint64 frameTime = av_rescale_q(pts, audioTimeBase, AV_TIME_BASE_Q);
+                frameTime = av_rescale_q(pts, audioTimeBase, AV_TIME_BASE_Q);
+                emit frameTimeUpdate(frameTime);
 
                 // 控制播放速度
                 qint64 now = av_gettime() - startTime;

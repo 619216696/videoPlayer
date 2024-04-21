@@ -21,7 +21,7 @@ public:
     void release();
 
 signals:
-    void frameReady();
+    void frameTimeUpdate(qint64 frameTime);
 
 public slots:
     void play() override;

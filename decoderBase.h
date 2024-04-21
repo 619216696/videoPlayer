@@ -22,6 +22,7 @@ protected:
     unsigned int stream_idx = -1;
     AVFormatContext* fmt_ctx = nullptr;
     AVCodecContext* dec_ctx = nullptr;
+    int64_t frameTime = 0;
     bool playing = false;
     std::mutex mutex;
     std::condition_variable cv;
