@@ -16,14 +16,16 @@ public:
     ~AudioDecoder();
 
     void run() override;
-    void play() override;
-    void stop() override;
 
     bool init(const QString& uri);
     void release();
 
 signals:
     void frameReady();
+
+public slots:
+    void play() override;
+    void stop() override;
 
 private:
     QString uri = "";

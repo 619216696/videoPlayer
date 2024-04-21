@@ -19,6 +19,8 @@ protected:
 
 signals:
     void startDecoding();
+    void play();
+    void stop();
 
 private slots:
     void onFrameReady(QImage frame);

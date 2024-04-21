@@ -5,6 +5,10 @@
 VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
     connect(&videoDecoder, &VideoDecoder::frameReady, this, &VideoPlayer::onFrameReady);
     connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
+    connect(this, &VideoPlayer::play, &videoDecoder, &VideoDecoder::play);
+    connect(this, &VideoPlayer::play, &audioDecoder, &AudioDecoder::play);
+    connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
+    connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
 }
 
 VideoPlayer::~VideoPlayer() {

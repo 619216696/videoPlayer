@@ -97,6 +97,8 @@ void AudioDecoder::release() {
 }
 
 void AudioDecoder::run() {
+    this->playing = true;
+
     AVPacket* packet = av_packet_alloc();
     AVFrame* frame = av_frame_alloc();
 
@@ -106,6 +108,12 @@ void AudioDecoder::run() {
     qint64 startTime = av_gettime();
 
     while (av_read_frame(fmt_ctx, packet) == 0) {
+        // 播放暂停控制
+        while (!playing) {
+            std::unique_lock<std::mutex> lock(mutex);
+            cv.wait(lock, [this]{ return this->playing; });
+        }
+
         if (packet->stream_index == stream_idx) {
             avcodec_send_packet(dec_ctx, packet);
             if (avcodec_receive_frame(dec_ctx, frame) == 0) {
@@ -140,9 +148,10 @@ void AudioDecoder::run() {
 }
 
 void AudioDecoder::play() {
-
+    playing = true;
+    cv.notify_all();
 }
 
 void AudioDecoder::stop() {
-
+    playing = false;
 }

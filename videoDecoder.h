@@ -17,14 +17,16 @@ public:
     ~VideoDecoder();
 
     void run() override;
-    void play() override;
-    void stop() override;
 
     bool init(const QString& uri, bool useHw);
     void release();
 
 signals:
     void frameReady(QImage frame);
+
+public slots:
+    void play() override;
+    void stop() override;
 
 private:
     QString uri = "";

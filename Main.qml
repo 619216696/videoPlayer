@@ -16,9 +16,27 @@ Window {
     }
 
     Button {
-        id: button
+        id: open
         text: '打开'
         onClicked: fileDialog.open()
+    }
+
+    Button {
+        id: play
+        text: '播放'
+        x: 50
+        onClicked: {
+            videoPlayer.play()
+        }
+    }
+
+    Button {
+        id: stop
+        text: '暂停'
+        x: 100
+        onClicked: {
+            videoPlayer.stop()
+        }
     }
 
     FileDialog {
