@@ -119,8 +119,12 @@ void VideoDecoder::run() {
     while (av_read_frame(fmt_ctx, packet) == 0) {
         // 播放暂停控制
         while (!playing) {
+            // 记录暂停的时间
+            qint64 stopTime = av_gettime();
             std::unique_lock<std::mutex> lock(mutex);
             cv.wait(lock, [this]{ return this->playing; });
+            // 将暂停的时间进行补偿
+            startTime += (av_gettime() - stopTime);
         }
 
         if (packet->stream_index == stream_idx) {
