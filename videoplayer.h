@@ -13,6 +13,7 @@ public:
     ~VideoPlayer();
 
     Q_INVOKABLE bool loadVideo(const QString& filename, bool hw = false);
+    Q_INVOKABLE qint64 getVideoTotleTime();
 
 protected:
     void paint(QPainter* painter) override;
@@ -21,6 +22,7 @@ signals:
     void startDecoding();
     void play();
     void stop();
+    void playTime(qint64 time);
 
 private slots:
     void onFrameReady(QImage frame);

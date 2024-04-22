@@ -22,6 +22,8 @@ bool AudioDecoder::init(const QString& uri) {
         return false;
     }
 
+    this->duration = (fmt_ctx->duration / AV_TIME_BASE);
+
     // 查找音频流索引
     for (unsigned int i = 0; i < fmt_ctx->nb_streams; ++i) {
         const auto codec_type = fmt_ctx->streams[i]->codecpar->codec_type;
@@ -159,4 +161,8 @@ void AudioDecoder::play() {
 
 void AudioDecoder::stop() {
     playing = false;
+}
+
+qint64 AudioDecoder::getDuration() {
+    return this->duration;
 }

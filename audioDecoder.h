@@ -19,6 +19,7 @@ public:
 
     bool init(const QString& uri);
     void release();
+    qint64 getDuration();
 
 signals:
     void frameTimeUpdate(qint64 frameTime);
@@ -32,6 +33,7 @@ private:
     SwrContext* swr_ctx = nullptr;
     QAudioSink* audioSink = nullptr;
     QIODevice* audioDevice = nullptr;
+    qint64 duration = 0;
 };
 
 #endif // AUDIODECODER_H

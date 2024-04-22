@@ -10,6 +10,7 @@ VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
     connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
     connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
     connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, &videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
+    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, this, &VideoPlayer::playTime);
 }
 
 VideoPlayer::~VideoPlayer() {
@@ -42,6 +43,10 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
     // 开始线程解码
     emit startDecoding();
     return true;
+}
+
+qint64 VideoPlayer::getVideoTotleTime() {
+    return audioDecoder.getDuration();
 }
 
 void VideoPlayer::paint(QPainter* painter) {
