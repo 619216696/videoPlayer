@@ -58,14 +58,6 @@ bool AudioDecoder::init(const QString& uri) {
         return false;
     }
 
-    // 初始化音频输出
-    QAudioFormat format;
-    // 设置音频格式参数
-    format.setSampleRate(dec_ctx->sample_rate);
-    format.setChannelCount(2);
-    // 设置音频样本格式
-    format.setSampleFormat(QAudioFormat::Int16);
-
     // 初始化SwrContext
     AVChannelLayout outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
     if (swr_alloc_set_opts2(&swr_ctx, &outChannelLayout, AV_SAMPLE_FMT_S16, dec_ctx->sample_rate, &dec_ctx->ch_layout, dec_ctx->sample_fmt, dec_ctx->sample_rate, 0, nullptr) != 0) {
@@ -73,20 +65,6 @@ bool AudioDecoder::init(const QString& uri) {
         return false;
     }
     swr_init(swr_ctx);
-
-    // 创建QAudioSink实例
-    audioSink = new QAudioSink(QMediaDevices::defaultAudioOutput(), format, this);
-    if (audioSink->isNull()) {
-        qWarning() << "audio sink is null, cannot play audio.";
-        return false;
-    }
-
-    // 开始播放，返回可以写入音频数据的 QIODevice
-    audioDevice = audioSink->start();
-    if (!audioDevice) {
-        qWarning() << "Failed to start audio sink.";
-        return false;
-    }
 
     return true;
 }
@@ -99,7 +77,29 @@ void AudioDecoder::release() {
 }
 
 void AudioDecoder::run() {
-    this->playing = true;
+    this->playing.store(true);
+
+    // 初始化音频输出
+    QAudioFormat format;
+    // 设置音频格式参数
+    format.setSampleRate(dec_ctx->sample_rate);
+    format.setChannelCount(2);
+    // 设置音频样本格式
+    format.setSampleFormat(QAudioFormat::Int16);
+
+    // 创建QAudioSink实例
+    audioSink = new QAudioSink(QMediaDevices::defaultAudioOutput(), format, this);
+    if (audioSink->isNull()) {
+        qWarning() << "audio sink is null, cannot play audio.";
+        return;
+    }
+
+    // 开始播放，返回可以写入音频数据的 QIODevice
+    audioDevice = audioSink->start();
+    if (!audioDevice) {
+        qWarning() << "Failed to start audio sink.";
+        return;
+    }
 
     AVPacket* packet = av_packet_alloc();
     AVFrame* frame = av_frame_alloc();
@@ -107,62 +107,79 @@ void AudioDecoder::run() {
     // 获取音频流的时间基准
     AVRational audioTimeBase = fmt_ctx->streams[stream_idx]->time_base;
     // 获取当前时间
-    qint64 startTime = av_gettime();
+    startTime = av_gettime();
 
-    while (av_read_frame(fmt_ctx, packet) == 0) {
+    while (1) {
         // 播放暂停控制
-        while (!playing) {
+        while (!playing.load()) {
             // 记录暂停的时间
             qint64 stopTime = av_gettime();
             std::unique_lock<std::mutex> lock(mutex);
-            cv.wait(lock, [this]{ return this->playing; });
+            cv.wait(lock, [this]{ return this->playing.load(); });
             // 将暂停的时间进行补偿
             startTime += (av_gettime() - stopTime);
         }
+        // 解码逻辑
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (av_read_frame(fmt_ctx, packet) != 0) break;
+            if (packet->stream_index == stream_idx) {
+                avcodec_send_packet(dec_ctx, packet);
+                if (avcodec_receive_frame(dec_ctx, frame) == 0) {
+                    // 计算帧的播放时间
+                    qint64 pts = frame->best_effort_timestamp;
+                    frameTime = av_rescale_q(pts, audioTimeBase, AV_TIME_BASE_Q);
+                    emit frameTimeUpdate(frameTime);
 
-        if (packet->stream_index == stream_idx) {
-            avcodec_send_packet(dec_ctx, packet);
-            if (avcodec_receive_frame(dec_ctx, frame) == 0) {
-                // 计算帧的播放时间
-                qint64 pts = frame->best_effort_timestamp;
-                frameTime = av_rescale_q(pts, audioTimeBase, AV_TIME_BASE_Q);
-                emit frameTimeUpdate(frameTime);
+                    // 控制播放速度
+                    qint64 now = av_gettime() - startTime;
+                    qint64 delay = frameTime - now;
+                    if (playing.load() && delay > 0) {
+                        av_usleep(delay);
+                    }
 
-                // 控制播放速度
-                qint64 now = av_gettime() - startTime;
-                qint64 delay = frameTime - now;
-                if (delay > 0) {
-                    av_usleep(delay);
+                    // 音频帧转换
+                    uint8_t* out_buf = nullptr;
+                    av_samples_alloc(&out_buf, nullptr, 2, frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
+                    int frame_count = swr_convert(swr_ctx, &out_buf, frame->nb_samples, (const uint8_t**)frame->data, frame->nb_samples);
+
+                    if (frame_count > 0) {
+                        int out_buf_size = av_samples_get_buffer_size(nullptr, 2, frame_count, AV_SAMPLE_FMT_S16, 0);
+                        QByteArray buffer(reinterpret_cast<char*>(out_buf), out_buf_size);
+                        audioDevice->write(buffer);
+                    }
+                    av_freep(&out_buf);
                 }
-
-                // 音频帧转换
-                uint8_t* out_buf = nullptr;
-                av_samples_alloc(&out_buf, nullptr, 2, frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
-                int frame_count = swr_convert(swr_ctx, &out_buf, frame->nb_samples, (const uint8_t**)frame->data, frame->nb_samples);
-
-                if (frame_count > 0) {
-                    int out_buf_size = av_samples_get_buffer_size(nullptr, 2, frame_count, AV_SAMPLE_FMT_S16, 0);
-                    QByteArray buffer(reinterpret_cast<char*>(out_buf), out_buf_size);
-                    audioDevice->write(buffer);
-                }
-                av_freep(&out_buf);
             }
+            av_packet_unref(packet);
         }
-        av_packet_unref(packet);
     }
     av_packet_free(&packet);
     av_frame_free(&frame);
 }
 
 void AudioDecoder::play() {
-    playing = true;
+    playing.store(true);
     cv.notify_all();
 }
 
 void AudioDecoder::stop() {
-    playing = false;
+    playing.store(false);
 }
 
 qint64 AudioDecoder::getDuration() {
     return this->duration;
+}
+
+void AudioDecoder::seekToPosition(qint64 timestamp) {
+    stop();
+    {
+        // 获取锁后，再操作数据
+        std::lock_guard<std::mutex> lock(mutex);
+        qint64 time = timestamp * AV_TIME_BASE;
+        startTime -= (time - frameTime);
+        av_seek_frame(fmt_ctx, -1, time, AVSEEK_FLAG_BACKWARD);
+        avcodec_flush_buffers(dec_ctx);
+    }
+    play();
 }

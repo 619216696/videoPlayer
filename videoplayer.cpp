@@ -3,14 +3,7 @@
 #include <QPainter>
 
 VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
-    connect(&videoDecoder, &VideoDecoder::frameReady, this, &VideoPlayer::onFrameReady);
     connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
-    connect(this, &VideoPlayer::play, &videoDecoder, &VideoDecoder::play);
-    connect(this, &VideoPlayer::play, &audioDecoder, &AudioDecoder::play);
-    connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
-    connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
-    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, &videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
-    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, this, &VideoPlayer::playTime);
 }
 
 VideoPlayer::~VideoPlayer() {
@@ -39,6 +32,16 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
         qCritical() << "audio decoder thread init failed";
         return false;
     }
+
+    connect(&videoDecoder, &VideoDecoder::frameReady, this, &VideoPlayer::onFrameReady);
+    connect(this, &VideoPlayer::play, &videoDecoder, &VideoDecoder::play);
+    connect(this, &VideoPlayer::play, &audioDecoder, &AudioDecoder::play);
+    connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
+    connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
+    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, &videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
+    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, this, &VideoPlayer::playTime);
+    connect(this, &VideoPlayer::seekToPosition, &audioDecoder, &AudioDecoder::seekToPosition);
+    connect(this, &VideoPlayer::seekToPosition, &videoDecoder, &VideoDecoder::seekToPosition);
 
     // 开始线程解码
     emit startDecoding();

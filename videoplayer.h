@@ -23,6 +23,7 @@ signals:
     void play();
     void stop();
     void playTime(qint64 time);
+    void seekToPosition(qint64 timestamp);
 
 private slots:
     void onFrameReady(QImage frame);

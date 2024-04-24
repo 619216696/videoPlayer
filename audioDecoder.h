@@ -27,6 +27,7 @@ signals:
 public slots:
     void play() override;
     void stop() override;
+    void seekToPosition(qint64 timestamp) override;
 
 private:
     QString uri = "";
@@ -34,6 +35,7 @@ private:
     QAudioSink* audioSink = nullptr;
     QIODevice* audioDevice = nullptr;
     qint64 duration = 0;
+    qint64 startTime = 0;
 };
 
 #endif // AUDIODECODER_H

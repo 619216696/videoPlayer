@@ -25,8 +25,10 @@ Window {
         id: videoPlayer
         height: parent.height
         width: parent.width
-        onPlayTime: {
-            playTime.text = formatTime(Math.floor(time / 1000000))
+        onPlayTime: time => {
+            const curTime = Math.floor(time / 1000000)
+            playTime.text = formatTime(curTime)
+            playBar.value = curTime
         }
     }
 
@@ -56,6 +58,24 @@ Window {
         }
     }
 
+    Button {
+        text: '前进'
+        x: 100
+        y: 50
+        onClicked: {
+            videoPlayer.seekToPosition(2000)
+        }
+    }
+
+    Button {
+        text: '后退'
+        x: 150
+        y: 50
+        onClicked: {
+            videoPlayer.seekToPosition(1000)
+        }
+    }
+
     Text {
         id: playTime
         text: '00:00:00'
@@ -70,14 +90,33 @@ Window {
         x: 250
     }
 
+    Slider {
+        id: playBar
+        anchors.left: parent.left
+        anchors.right: parent.right
+        x: 20
+        y: 30
+        from: 0 // 设置滑块的最小值
+        to: 0 // 设置滑块的最大值
+        value: 0 // 设置滑块的当前值
+        onValueChanged: {
+            console.log('value Change: ', this.value)
+        }
+        onPressedChanged: {
+            videoPlayer.seekToPosition(this.value)
+        }
+    }
+
     FileDialog {
         id: fileDialog
         title: "打开视频"
         nameFilters: ["*.mp4", "*.avi", "*.mkv", "*"]
         onAccepted: {
             console.log("Selected file: " + fileDialog.file)
-            if (videoPlayer.loadVideo(fileDialog.file, true)) {
-                totleTime.text = formatTime(videoPlayer.getVideoTotleTime())
+            if (videoPlayer.loadVideo(fileDialog.file, false)) {
+                const time = videoPlayer.getVideoTotleTime()
+                totleTime.text = formatTime(time)
+                playBar.to = time
             }
         }
     }

@@ -27,6 +27,7 @@ signals:
 public slots:
     void play() override;
     void stop() override;
+    void seekToPosition(qint64 timestamp) override;
     void audioFrameTimeUpdate(qint64 frameTime);
 
 private:
