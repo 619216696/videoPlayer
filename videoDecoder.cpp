@@ -106,13 +106,13 @@ void VideoDecoder::release() {
 void VideoDecoder::run() {
     this->playing.store(true);
 
-    AVPacket* packet = av_packet_alloc();
+    packet = av_packet_alloc();
     AVFrame* frame = av_frame_alloc();
     // 分配一个AVFrame用于存储转换硬件解码后的数据
-    AVFrame* hw_transfer_frame = av_frame_alloc();
+    hw_transfer_frame = av_frame_alloc();
 
     // 获取视频流的时间基准
-    AVRational videoTimeBase = fmt_ctx->streams[stream_idx]->time_base;
+    timeBase = fmt_ctx->streams[stream_idx]->time_base;
 
     while (1) {
         // 播放暂停控制
@@ -120,50 +120,55 @@ void VideoDecoder::run() {
             std::unique_lock<std::mutex> lock(mutex);
             cv.wait(lock, [this]{ return this->playing.load(); });
         }
-        // 解码逻辑
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            if (av_read_frame(fmt_ctx, packet) != 0) break;
-            if (packet->stream_index == stream_idx) {
-                avcodec_send_packet(dec_ctx, packet);
-                if (avcodec_receive_frame(dec_ctx, frame) == 0) {
-                    // 计算帧的显示时间
-                    qint64 pts = frame->best_effort_timestamp;
-                    frameTime = av_rescale_q(pts, videoTimeBase, AV_TIME_BASE_Q);
 
-                    qint64 delay = frameTime - audioFrameTime;
-                    if (playing.load() && delay > 0) {
-                        av_usleep(delay);
-                    }
-
-                    AVFrame* destFrame = frame;
-                    if (frame->hw_frames_ctx) { // 硬件解码则需要做转换
-                        hw_transfer_frame->width = frame->width;
-                        hw_transfer_frame->height = frame->height;
-
-                        if (av_hwframe_transfer_data(hw_transfer_frame, frame, 0) == 0) {
-                            destFrame = hw_transfer_frame;
-                        }
-                    }
-
-                    // 帧格式转换为rgba格式的QImage，并发送到界面渲染
-                    AVFrame* frameRGBA = av_frame_alloc();
-                    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
-                    uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
-                    av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
-                    sws_scale(sws_ctx, destFrame->data, destFrame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
-                    QImage img((uchar*)buffer, dec_ctx->width, dec_ctx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
-                    emit frameReady(img.copy());
-                    av_frame_free(&frameRGBA);
-                }
-            }
-            av_packet_unref(packet);
-        }
+        // 解码
+        if (!decodeOneFrame(frame)) break;
 
     }
     av_packet_free(&packet);
     av_frame_free(&frame);
     av_frame_free(&hw_transfer_frame);
+}
+
+bool VideoDecoder::decodeOneFrame(AVFrame* frame) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (av_read_frame(fmt_ctx, packet) != 0) return false;
+    if (packet->stream_index == stream_idx) {
+        avcodec_send_packet(dec_ctx, packet);
+        if (avcodec_receive_frame(dec_ctx, frame) == 0) {
+            // 计算帧的显示时间
+            qint64 pts = frame->best_effort_timestamp;
+            frameTime = av_rescale_q(pts, timeBase, AV_TIME_BASE_Q);
+
+            qint64 delay = frameTime - audioFrameTime;
+            if (playing.load() && delay > 0) {
+                av_usleep(delay);
+            }
+
+            AVFrame* destFrame = frame;
+            if (frame->hw_frames_ctx) { // 硬件解码则需要做转换
+                hw_transfer_frame->width = frame->width;
+                hw_transfer_frame->height = frame->height;
+
+                if (av_hwframe_transfer_data(hw_transfer_frame, frame, 0) == 0) {
+                    destFrame = hw_transfer_frame;
+                }
+            }
+
+            // 帧格式转换为rgba格式的QImage，并发送到界面渲染
+            AVFrame* frameRGBA = av_frame_alloc();
+            int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
+            uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
+            av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
+            sws_scale(sws_ctx, destFrame->data, destFrame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
+            QImage img((uchar*)buffer, dec_ctx->width, dec_ctx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
+            emit frameReady(img.copy());
+            av_frame_free(&frameRGBA);
+        }
+    }
+    av_packet_unref(packet);
+
+    return true;
 }
 
 void VideoDecoder::play() {

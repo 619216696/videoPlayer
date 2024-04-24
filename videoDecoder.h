@@ -17,7 +17,7 @@ public:
     ~VideoDecoder();
 
     void run() override;
-
+    bool decodeOneFrame(AVFrame* frame) override;
     bool init(const QString& uri, bool useHw);
     void release();
 
@@ -36,6 +36,7 @@ private:
     AVBufferRef* hw_device_ctx = nullptr;
     SwsContext* sws_ctx = nullptr;
     qint64 audioFrameTime = 0;
+    AVFrame* hw_transfer_frame = nullptr;
 };
 
 #endif // VIDEODECODER_H
