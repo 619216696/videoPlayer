@@ -16,7 +16,7 @@ public:
     ~AudioDecoder();
 
     void run() override;
-    bool decodeOneFrame(AVFrame* frame) override;
+    bool decodeOneFrame() override;
     bool init(const QString& uri);
     void release();
     qint64 getDuration();

@@ -107,7 +107,7 @@ void VideoDecoder::run() {
     this->playing.store(true);
 
     packet = av_packet_alloc();
-    AVFrame* frame = av_frame_alloc();
+    frame = av_frame_alloc();
     // 分配一个AVFrame用于存储转换硬件解码后的数据
     hw_transfer_frame = av_frame_alloc();
 
@@ -122,16 +122,17 @@ void VideoDecoder::run() {
         }
 
         // 解码
-        if (!decodeOneFrame(frame)) break;
-
+        if (!decodeOneFrame()) break;
     }
     av_packet_free(&packet);
     av_frame_free(&frame);
     av_frame_free(&hw_transfer_frame);
 }
 
-bool VideoDecoder::decodeOneFrame(AVFrame* frame) {
+bool VideoDecoder::decodeOneFrame() {
     std::lock_guard<std::mutex> lock(mutex);
+
+    av_packet_unref(packet);
     if (av_read_frame(fmt_ctx, packet) != 0) return false;
     if (packet->stream_index == stream_idx) {
         avcodec_send_packet(dec_ctx, packet);
@@ -166,7 +167,6 @@ bool VideoDecoder::decodeOneFrame(AVFrame* frame) {
             av_frame_free(&frameRGBA);
         }
     }
-    av_packet_unref(packet);
 
     return true;
 }
@@ -189,7 +189,8 @@ void VideoDecoder::seekToPosition(qint64 timestamp) {
     {
         // 获取锁后，再操作数据
         std::lock_guard<std::mutex> lock(mutex);
-        av_seek_frame(fmt_ctx, -1, timestamp * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD);
+        av_seek_frame(fmt_ctx, -1, timestamp, AVSEEK_FLAG_BACKWARD);
+        // 清除解码器上下文缓存
         avcodec_flush_buffers(dec_ctx);
     }
     play();

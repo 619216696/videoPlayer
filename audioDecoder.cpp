@@ -102,7 +102,7 @@ void AudioDecoder::run() {
     }
 
     packet = av_packet_alloc();
-    AVFrame* frame = av_frame_alloc();
+    frame = av_frame_alloc();
 
     // 获取音频流的时间基准
     timeBase = fmt_ctx->streams[stream_idx]->time_base;
@@ -121,15 +121,16 @@ void AudioDecoder::run() {
         }
 
         // 解码
-        if (!decodeOneFrame(frame)) break;
+        if (!decodeOneFrame()) break;
     }
     av_packet_free(&packet);
     av_frame_free(&frame);
 }
 
-bool AudioDecoder::decodeOneFrame(AVFrame* frame) {
+bool AudioDecoder::decodeOneFrame() {
     std::lock_guard<std::mutex> lock(mutex);
 
+    av_packet_unref(packet);
     if (av_read_frame(fmt_ctx, packet) != 0) return false;
 
     if (packet->stream_index == stream_idx) {
@@ -160,7 +161,6 @@ bool AudioDecoder::decodeOneFrame(AVFrame* frame) {
             av_freep(&out_buf);
         }
     }
-    av_packet_unref(packet);
 
     return true;
 }
@@ -183,9 +183,9 @@ void AudioDecoder::seekToPosition(qint64 timestamp) {
     {
         // 获取锁后，再操作数据
         std::lock_guard<std::mutex> lock(mutex);
-        qint64 time = timestamp * AV_TIME_BASE;
+        qint64 time = timestamp;
         startTime -= (time - frameTime);
-        av_seek_frame(fmt_ctx, -1, time, AVSEEK_FLAG_BACKWARD);
+        av_seek_frame(fmt_ctx, -1, time, AVSEEK_FLAG_ANY);
         avcodec_flush_buffers(dec_ctx);
     }
     play();

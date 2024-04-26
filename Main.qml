@@ -63,7 +63,7 @@ Window {
         x: 100
         y: 50
         onClicked: {
-            videoPlayer.seekToPosition(2000)
+            videoPlayer.seekToPosition(1977109333)
         }
     }
 
@@ -72,7 +72,7 @@ Window {
         x: 150
         y: 50
         onClicked: {
-            videoPlayer.seekToPosition(1000)
+            videoPlayer.seekToPosition(1000000000)
         }
     }
 
@@ -103,7 +103,7 @@ Window {
             console.log('value Change: ', this.value)
         }
         onPressedChanged: {
-            videoPlayer.seekToPosition(this.value)
+            videoPlayer.seekToPosition(Math.floor(this.value * 1000000))
         }
     }
 

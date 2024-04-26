@@ -19,7 +19,7 @@ public:
     virtual void play() = 0;
     virtual void stop() = 0;
     virtual void seekToPosition(int64_t timestamp) = 0;
-    virtual bool decodeOneFrame(AVFrame* frame) = 0;
+    virtual bool decodeOneFrame() = 0;
 
 protected:
     unsigned int stream_idx = -1;
@@ -30,6 +30,7 @@ protected:
     std::mutex mutex;
     std::condition_variable cv;
     AVPacket* packet = nullptr;
+    AVFrame* frame = nullptr;
     AVRational timeBase;
 };
 

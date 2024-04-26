@@ -17,7 +17,7 @@ public:
     ~VideoDecoder();
 
     void run() override;
-    bool decodeOneFrame(AVFrame* frame) override;
+    bool decodeOneFrame() override;
     bool init(const QString& uri, bool useHw);
     void release();
 
