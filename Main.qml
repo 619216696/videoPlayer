@@ -8,6 +8,7 @@ Window {
     height: 480
     visible: true
     title: qsTr("VPlayer")
+    color: 'black'
 
     function formatTime(seconds) {
         const hours = Math.floor(seconds / 3600)
@@ -113,7 +114,7 @@ Window {
         nameFilters: ["*.mp4", "*.avi", "*.mkv", "*"]
         onAccepted: {
             console.log("Selected file: " + fileDialog.file)
-            if (videoPlayer.loadVideo(fileDialog.file, false)) {
+            if (videoPlayer.loadVideo(fileDialog.file, true)) {
                 const time = videoPlayer.getVideoTotleTime()
                 totleTime.text = formatTime(time)
                 playBar.to = time

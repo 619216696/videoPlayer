@@ -55,7 +55,15 @@ qint64 VideoPlayer::getVideoTotleTime() {
 void VideoPlayer::paint(QPainter* painter) {
     if (image.isNull()) return;
 
-    painter->drawImage(boundingRect(), image);
+    QImage img = image.scaled(this->width(), this->height(), Qt::KeepAspectRatio);
+
+    int x = this->width() - img.width();
+    int y = this->height() - img.height();
+
+    x /= 2;
+    y /= 2;
+
+    painter->drawImage(QPoint(x,y), img);
 }
 
 void VideoPlayer::onFrameReady(QImage frame) {
