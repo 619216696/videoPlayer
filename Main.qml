@@ -10,6 +10,21 @@ Window {
     title: qsTr("VPlayer")
     color: 'black'
 
+    // 创建一个定时器，用来获取播放时间，间隔500ms获取一次
+    Timer {
+        id: playTimeTimer
+        interval: 500
+        repeat: true
+        running: false
+
+        onTriggered: {
+           const playTime = videoPlayer.getPlayTime()
+           playTimeText.text = formatTime(playTime)
+           playBar.value = playTime
+        }
+    }
+
+    // 格式化时间
     function formatTime(seconds) {
         const hours = Math.floor(seconds / 3600)
         const minutes = Math.floor((seconds % 3600) / 60)
@@ -26,11 +41,6 @@ Window {
         id: videoPlayer
         height: parent.height
         width: parent.width
-        onPlayTime: time => {
-            const curTime = Math.floor(time / 1000000)
-            playTime.text = formatTime(curTime)
-            playBar.value = curTime
-        }
     }
 
     Button {
@@ -46,7 +56,8 @@ Window {
         text: '播放'
         x: 50
         onClicked: {
-            videoPlayer.play()
+            videoPlayer.setPlayState(true)
+            playTimeTimer.start()
         }
     }
 
@@ -55,7 +66,8 @@ Window {
         text: '暂停'
         x: 100
         onClicked: {
-            videoPlayer.stop()
+            videoPlayer.setPlayState(false)
+            playTimeTimer.stop()
         }
     }
 
@@ -64,7 +76,7 @@ Window {
         x: 100
         y: 50
         onClicked: {
-            videoPlayer.seekToPosition(1977109333)
+            videoPlayer.seekToPosition(1977)
         }
     }
 
@@ -73,19 +85,19 @@ Window {
         x: 150
         y: 50
         onClicked: {
-            videoPlayer.seekToPosition(1000000000)
+            videoPlayer.seekToPosition(1000)
         }
     }
 
     Text {
-        id: playTime
+        id: playTimeText
         text: '00:00:00'
         color: '#FFFFFF'
         x: 150
     }
 
     Text {
-        id: totleTime
+        id: totleTimeText
         text: '00:00:00'
         color: '#FFFFFF'
         x: 250
@@ -100,11 +112,13 @@ Window {
         from: 0 // 设置滑块的最小值
         to: 0 // 设置滑块的最大值
         value: 0 // 设置滑块的当前值
-        onValueChanged: {
-            console.log('value Change: ', this.value)
-        }
         onPressedChanged: {
-            videoPlayer.seekToPosition(Math.floor(this.value * 1000000))
+            if (videoPlayer.getPlayTime() === this.value) return
+            playTimeTimer.stop()
+            const second = Math.floor(this.value)
+            console.log('seekToPosition: ', second)
+            videoPlayer.seekToPosition(second)
+            playTimeTimer.start()
         }
     }
 
@@ -114,10 +128,12 @@ Window {
         nameFilters: ["*.mp4", "*.avi", "*.mkv", "*"]
         onAccepted: {
             console.log("Selected file: " + fileDialog.file)
-            if (videoPlayer.loadVideo(fileDialog.file, true)) {
+            if (videoPlayer.loadVideo(fileDialog.file, false)) {
                 const time = videoPlayer.getVideoTotleTime()
-                totleTime.text = formatTime(time)
+                totleTimeText.text = formatTime(time)
                 playBar.to = time
+                // 启动定时器，获取播放时间
+                playTimeTimer.start()
             }
         }
     }

@@ -2,18 +2,12 @@
 #include <QDebug>
 #include <QPainter>
 
-VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {
-    connect(this, &VideoPlayer::startDecoding, this, &VideoPlayer::startDecoderThread);
-}
+VideoPlayer::VideoPlayer(QQuickItem* parent) : QQuickPaintedItem(parent) {}
 
 VideoPlayer::~VideoPlayer() {
-    if (audioDecoder.isRunning()) {
-        audioDecoder.requestInterruption();
-        audioDecoder.wait();
-    }
-    if (videoDecoder.isRunning()) {
-        videoDecoder.requestInterruption();
-        videoDecoder.wait();
+    if (m_decoder.isRunning()) {
+        m_decoder.requestInterruption();
+        m_decoder.wait();
     }
 }
 
@@ -23,39 +17,22 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
     qDebug() << "loadVideo path: " << localPath;
 
     // 设置解码线程的上下文
-    if (!videoDecoder.init(localPath, useHw)) {
-        qCritical() << "video decoder thread init failed";
+    if (!m_decoder.init(localPath, useHw)) {
+        qCritical() << "decoder thread init failed";
         return false;
     }
 
-    if (!audioDecoder.init(localPath)) {
-        qCritical() << "audio decoder thread init failed";
-        return false;
-    }
-
-    connect(&videoDecoder, &VideoDecoder::frameReady, this, &VideoPlayer::onFrameReady);
-    connect(this, &VideoPlayer::play, &videoDecoder, &VideoDecoder::play);
-    connect(this, &VideoPlayer::play, &audioDecoder, &AudioDecoder::play);
-    connect(this, &VideoPlayer::stop, &videoDecoder, &VideoDecoder::stop);
-    connect(this, &VideoPlayer::stop, &audioDecoder, &AudioDecoder::stop);
-    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, &videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
-    connect(&audioDecoder, &AudioDecoder::frameTimeUpdate, this, &VideoPlayer::playTime);
-    connect(this, &VideoPlayer::seekToPosition, &audioDecoder, &AudioDecoder::seekToPosition);
-    connect(this, &VideoPlayer::seekToPosition, &videoDecoder, &VideoDecoder::seekToPosition);
+    connect(&m_decoder, &Decoder::frameReady, this, &VideoPlayer::onFrameReady);
 
     // 开始线程解码
-    emit startDecoding();
+    m_decoder.start();
     return true;
 }
 
-qint64 VideoPlayer::getVideoTotleTime() {
-    return audioDecoder.getDuration();
-}
-
 void VideoPlayer::paint(QPainter* painter) {
-    if (image.isNull()) return;
+    if (m_image.isNull()) return;
 
-    QImage img = image.scaled(this->width(), this->height(), Qt::KeepAspectRatio);
+    QImage img = m_image.scaled(this->width(), this->height(), Qt::KeepAspectRatio);
 
     int x = this->width() - img.width();
     int y = this->height() - img.height();
@@ -67,13 +44,7 @@ void VideoPlayer::paint(QPainter* painter) {
 }
 
 void VideoPlayer::onFrameReady(QImage frame) {
-    image = frame;
+    m_image = frame;
     // 触发重绘
     update();
-}
-
-void VideoPlayer::startDecoderThread() {
-    // 使用默认优先级启动线程
-    videoDecoder.start();
-    audioDecoder.start();
 }

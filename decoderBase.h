@@ -3,7 +3,7 @@
 
 #include <mutex>
 #include <condition_variable>
-#include <atomic>
+#include <QQueue>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -16,22 +16,55 @@ public:
     DecoderBase() {};
     virtual ~DecoderBase() {};
 
-    virtual void play() = 0;
-    virtual void stop() = 0;
-    virtual void seekToPosition(int64_t timestamp) = 0;
-    virtual bool decodeOneFrame() = 0;
+    inline void play() {
+        m_bPlaying = true;
+        m_cv.notify_all();
+    }
+
+    inline void stop() {
+       m_bPlaying = false;
+    }
+
+    inline void addToQueue(AVPacket* packet) {
+        m_mutex.lock();
+        m_queue.enqueue(packet);
+        m_mutex.unlock();
+    }
+
+    inline qsizetype queueSize() {
+        return m_queue.size();
+    }
+
+    inline qint64 getFrameTime() {
+        return m_nFrameTime;
+    }
+
+    inline void seekToPosition(qint64 seekTime) {
+        m_mutex.lock();
+        for (auto packet : m_queue) {
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+        }
+        m_queue.clear();
+        m_bSeekFlag = true;
+        m_nSeekTime = seekTime;
+        m_mutex.unlock();
+    }
 
 protected:
-    unsigned int stream_idx = -1;
-    AVFormatContext* fmt_ctx = nullptr;
-    AVCodecContext* dec_ctx = nullptr;
-    int64_t frameTime = 0;
-    std::atomic<bool> playing = false;
-    std::mutex mutex;
-    std::condition_variable cv;
-    AVPacket* packet = nullptr;
-    AVFrame* frame = nullptr;
-    AVRational timeBase;
+    // 帧时间 单位微秒
+    qint64 m_nFrameTime = 0;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    AVStream* m_pStream = nullptr;
+    AVCodecContext* m_pDecCtx = nullptr;
+    AVRational m_timeBase;
+    bool m_bPlaying = false;
+    QQueue<AVPacket*> m_queue;
+    // 跳转标志
+    bool m_bSeekFlag = false;
+    // 跳转时间 单位微秒
+    qint64 m_nSeekTime = -1;
 };
 
 #endif // DECODERBASE_H

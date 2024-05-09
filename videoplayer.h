@@ -3,8 +3,7 @@
 
 #include <QQuickPaintedItem>
 #include <QImage>
-#include "videoDecoder.h"
-#include "audioDecoder.h"
+#include "decoder.h"
 
 class VideoPlayer : public QQuickPaintedItem {
     Q_OBJECT
@@ -12,27 +11,26 @@ public:
     VideoPlayer(QQuickItem* parent = nullptr);
     ~VideoPlayer();
 
+    // 加载视频
     Q_INVOKABLE bool loadVideo(const QString& filename, bool hw = false);
-    Q_INVOKABLE qint64 getVideoTotleTime();
+    // 设置暂停/播放
+    Q_INVOKABLE inline void setPlayState(bool play) { m_decoder.setPlayState(play); }
+    // 获取视频总时长 单位秒
+    Q_INVOKABLE inline qint64 getVideoTotleTime() { return m_decoder.getTotleTime(); };
+    // 获取当前播放时间 单位秒
+    Q_INVOKABLE inline qint64 getPlayTime() { return m_decoder.getPlayTime(); }
+    // 跳转到某位置 单位秒
+    Q_INVOKABLE inline void seekToPosition(qint64 second) { m_decoder.seekToPosition(second); }
 
 protected:
     void paint(QPainter* painter) override;
 
-signals:
-    void startDecoding();
-    void play();
-    void stop();
-    void playTime(qint64 time);
-    void seekToPosition(qint64 timestamp);
-
 private slots:
     void onFrameReady(QImage frame);
-    void startDecoderThread();
 
 private:
-    VideoDecoder videoDecoder;
-    AudioDecoder audioDecoder;
-    QImage image;
+    Decoder m_decoder;
+    QImage m_image;
 };
 
 #endif // VIDEOPLAYER_H

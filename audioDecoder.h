@@ -9,33 +9,26 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
-class AudioDecoder: public QThread, DecoderBase {
+class AudioDecoder: public QThread, public DecoderBase {
     Q_OBJECT
 public:
-    AudioDecoder(QObject* parent = nullptr);
+    AudioDecoder();
     ~AudioDecoder();
 
+    bool init(AVStream* stream);
+
+protected:
     void run() override;
-    bool decodeOneFrame() override;
-    bool init(const QString& uri);
-    void release();
-    qint64 getDuration();
 
 signals:
     void frameTimeUpdate(qint64 frameTime);
 
-public slots:
-    void play() override;
-    void stop() override;
-    void seekToPosition(qint64 timestamp) override;
-
 private:
-    QString uri = "";
-    SwrContext* swr_ctx = nullptr;
-    QAudioSink* audioSink = nullptr;
-    QIODevice* audioDevice = nullptr;
-    qint64 duration = 0;
-    qint64 startTime = 0;
+    // 开始播放的时间 单位微秒
+    qint64 m_nStartTime = 0;
+    SwrContext* m_pSwrCtx = nullptr;
+    QAudioSink* m_pAudioSink = nullptr;
+    QIODevice* m_pAudioDevice = nullptr;
 };
 
 #endif // AUDIODECODER_H

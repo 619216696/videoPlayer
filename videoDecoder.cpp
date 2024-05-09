@@ -1,150 +1,153 @@
 #include "videoDecoder.h"
 #include <QDebug>
-#include <QMediaDevices>
-#include <QImage>
 
-VideoDecoder::VideoDecoder(QObject* parent): QThread(parent) {}
+VideoDecoder::VideoDecoder() {}
 
-VideoDecoder::~VideoDecoder() {}
+VideoDecoder::~VideoDecoder() {
+    if (m_pDecCtx) avcodec_free_context(&m_pDecCtx);
+    if (m_swsCtx) sws_freeContext(m_swsCtx);
+}
 
-bool VideoDecoder::init(const QString& uri, bool useHw) {
-    this->uri = uri;
-    this->useHw = useHw;
-
-    // 打开输入文件
-    if (avformat_open_input(&fmt_ctx, uri.toUtf8().constData(), nullptr, nullptr) != 0) {
-        qCritical() << "Failed to open input file";
-        return false;
-    }
-
-    // 寻找流信息
-    if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) {
-        qCritical() << "Failed to retrieve stream info";
-        release();
-        return false;
-    }
-
-    // 查找视频流索引
-    for (unsigned int i = 0; i < fmt_ctx->nb_streams; ++i) {
-        const auto codec_type = fmt_ctx->streams[i]->codecpar->codec_type;
-        if (codec_type == AVMEDIA_TYPE_VIDEO) {
-            stream_idx = i;
-            break;
-        }
-    }
-    if (stream_idx == -1) {
-        qCritical() << "No video stream";
-        release();
-        return false;
-    }
-
-    // 查找对应视频解码器
-    const AVCodec* video_decoder = useHw ?
+bool VideoDecoder::init(AVStream* stream, bool useHardwareDecoder) {
+    // 保存视频流
+    m_pStream = stream;
+    // 获取视频流的时间基准
+    m_timeBase = m_pStream->time_base;
+    // 获取解码器参数
+    const AVCodecParameters* codecpar = m_pStream->codecpar;
+    // 获取对应的解码器
+    const AVCodec* codec = useHardwareDecoder ?
         avcodec_find_decoder_by_name("h264_cuvid")
-        : avcodec_find_decoder(fmt_ctx->streams[stream_idx]->codecpar->codec_id);
+        : avcodec_find_decoder(codecpar->codec_id);
 
-    if (!video_decoder) {
+    if (!codec) {
         qCritical() << "Video decoder not found";
-        release();
-        return false;
+        goto end;
     }
-    dec_ctx = avcodec_alloc_context3(video_decoder);
 
-    if (avcodec_parameters_to_context(dec_ctx, fmt_ctx->streams[stream_idx]->codecpar) < 0) {
-        qCritical() << "Failed to copy video codec parameters to video decoder context";
-        release();
-        return false;
+    // 分配解码器上下文
+    m_pDecCtx = avcodec_alloc_context3(codec);
+    if (avcodec_parameters_to_context(m_pDecCtx, codecpar) < 0) {
+        qCritical() << "Failed to copy video codec parameters to video decoder context"; 
+        goto end;
     }
 
     // 打开视频解码器上下文
-    if (avcodec_open2(dec_ctx, video_decoder, nullptr) < 0) {
+    if (avcodec_open2(m_pDecCtx, codec, nullptr) < 0) {
         qCritical() << "Failed to open video codec context";
-        release();
-        return false;
+        goto end;
     }
 
-    if (useHw) {
+    if (useHardwareDecoder) {
         // 创建硬件设备上下文
         AVBufferRef* hw_device_ctx = nullptr;
         if (av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0) < 0) {
             qCritical() << "Failed to create a CUDA hardware device context";
-            release();
-            return false;
+            goto end;
         }
         // 将硬件设备上下文分配给解码器上下文
-        dec_ctx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+        m_pDecCtx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
     }
 
     // 创建并初始化SwsContext
-    sws_ctx = sws_getCachedContext(
+    m_swsCtx = sws_getCachedContext(
         nullptr,                  // 可以传入已有的SwsContext指针，这里我们创建新的
-        dec_ctx->width,           // 输入宽度
-        dec_ctx->height,          // 输入高度
-        useHw ? dec_ctx->sw_pix_fmt : dec_ctx->pix_fmt,         // 输入像素格式
-        dec_ctx->width,           // 输出宽度（此处保持与输入相同，也可以调整）
-        dec_ctx->height,          // 输出高度（同上）
+        m_pDecCtx->width,           // 输入宽度
+        m_pDecCtx->height,          // 输入高度
+        useHardwareDecoder ? m_pDecCtx->sw_pix_fmt : m_pDecCtx->pix_fmt,         // 输入像素格式
+        m_pDecCtx->width,           // 输出宽度（此处保持与输入相同，也可以调整）
+        m_pDecCtx->height,          // 输出高度（同上）
         AV_PIX_FMT_RGBA,          // 输出像素格式（这里选择RGBA以便Qt快速渲染）
         SWS_BILINEAR,             // 插值方法，可以选择其他如SWS_BICUBIC等
         nullptr, nullptr, nullptr  // 其他高级选项可以留空
         );
-    if (!sws_ctx) {
+    if (!m_swsCtx) {
         qCritical() << "Failed to initialize the conversion context";
-        release();
-        return false;
+        goto end;
     }
 
     return true;
-}
 
-void VideoDecoder::release() {
-    if (fmt_ctx) avformat_close_input(&fmt_ctx);
-    if (dec_ctx) avcodec_free_context(&dec_ctx);
-    if (hw_device_ctx) av_buffer_unref(&hw_device_ctx);
-    if (sws_ctx) sws_freeContext(sws_ctx);
+end:
+    if (m_pDecCtx) avcodec_free_context(&m_pDecCtx);
+    return false;
 }
 
 void VideoDecoder::run() {
-    this->playing.store(true);
+    m_bPlaying = true;
 
-    packet = av_packet_alloc();
-    frame = av_frame_alloc();
+    AVFrame* frame = av_frame_alloc();
     // 分配一个AVFrame用于存储转换硬件解码后的数据
-    hw_transfer_frame = av_frame_alloc();
-
-    // 获取视频流的时间基准
-    timeBase = fmt_ctx->streams[stream_idx]->time_base;
+    AVFrame* hw_transfer_frame = av_frame_alloc();
+    AVPacket* packet = nullptr;
 
     while (1) {
-        // 播放暂停控制
-        while (!playing.load()) {
-            std::unique_lock<std::mutex> lock(mutex);
-            cv.wait(lock, [this]{ return this->playing.load(); });
+        // 发生了跳转
+        if (m_bSeekFlag) {
+            // 清除解码器上下文缓存数据
+            avcodec_flush_buffers(m_pDecCtx);
+            // 清空跳转标志
+            m_bSeekFlag = false;
         }
 
-        // 解码
-        if (!decodeOneFrame()) break;
-    }
-    av_packet_free(&packet);
-    av_frame_free(&frame);
-    av_frame_free(&hw_transfer_frame);
-}
+        // 播放暂停控制
+        while (!m_bPlaying) {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_cv.wait(lock, [this]{ return m_bPlaying; });
+        }
 
-bool VideoDecoder::decodeOneFrame() {
-    std::lock_guard<std::mutex> lock(mutex);
+        // 从队列中获取一个packet
+        m_mutex.lock();
+        // 无数据
+        if (m_queue.empty()) {
+            m_mutex.unlock();
+            av_usleep(1000);
+            continue;
+        }
+        packet = m_queue.front();
+        m_queue.pop_front();
+        m_mutex.unlock();
 
-    av_packet_unref(packet);
-    if (av_read_frame(fmt_ctx, packet) != 0) return false;
-    if (packet->stream_index == stream_idx) {
-        avcodec_send_packet(dec_ctx, packet);
-        if (avcodec_receive_frame(dec_ctx, frame) == 0) {
+        // 发生了跳转
+        if (m_bSeekFlag) {
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+            continue;
+        }
+
+        // 发送一个包到解码器中解码
+        if (avcodec_send_packet(m_pDecCtx, packet) != 0) {
+            qDebug("send AVPacket to decoder failed!\n");
+            av_packet_unref(packet);
+            continue;
+        }
+        // 接受已解码数据
+        while (avcodec_receive_frame(m_pDecCtx, frame) == 0) {
             // 计算帧的显示时间
             qint64 pts = frame->best_effort_timestamp;
-            frameTime = av_rescale_q(pts, timeBase, AV_TIME_BASE_Q);
+            m_nFrameTime = av_rescale_q(pts, m_timeBase, AV_TIME_BASE_Q);
 
-            qint64 delay = frameTime - audioFrameTime;
-            if (playing.load() && delay > 0) {
-                av_usleep(delay);
+            // 发生了跳转 则跳过关键帧到目的时间的这几帧
+            if (m_nFrameTime < m_nSeekTime) {
+                continue;
+            } else {
+                m_nSeekTime = -1;
             }
+
+            // 根据音频进行播放同步
+            while (1) {
+                // 发生了跳转
+                if (m_bSeekFlag) break;
+                qint64 delay = m_nFrameTime - audioFrameTime;
+                qint64 sleepTime = delay > 5000 ? 5000 : delay;
+                if (sleepTime > 0) {
+                    av_usleep(sleepTime);
+                } else {
+                    break;
+                }
+            }
+            // 发生了跳转
+            if (m_bSeekFlag) break;
 
             AVFrame* destFrame = frame;
             if (frame->hw_frames_ctx) { // 硬件解码则需要做转换
@@ -158,40 +161,23 @@ bool VideoDecoder::decodeOneFrame() {
 
             // 帧格式转换为rgba格式的QImage，并发送到界面渲染
             AVFrame* frameRGBA = av_frame_alloc();
-            int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
+            int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, m_pDecCtx->width, m_pDecCtx->height, 1);
             uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
-            av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, dec_ctx->width, dec_ctx->height, 1);
-            sws_scale(sws_ctx, destFrame->data, destFrame->linesize, 0, dec_ctx->height, frameRGBA->data, frameRGBA->linesize);
-            QImage img((uchar*)buffer, dec_ctx->width, dec_ctx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
+            av_image_fill_arrays(frameRGBA->data, frameRGBA->linesize, buffer, AV_PIX_FMT_RGBA, m_pDecCtx->width, m_pDecCtx->height, 1);
+            sws_scale(m_swsCtx, destFrame->data, destFrame->linesize, 0, m_pDecCtx->height, frameRGBA->data, frameRGBA->linesize);
+            QImage img((uchar*)buffer, m_pDecCtx->width, m_pDecCtx->height, QImage::Format_RGBA8888, [](void* ptr) { av_free(ptr); }, buffer);
             emit frameReady(img.copy());
             av_frame_free(&frameRGBA);
         }
+        av_packet_unref(packet);
+        av_packet_free(&packet);
     }
 
-    return true;
-}
-
-void VideoDecoder::play() {
-    playing.store(true);
-    cv.notify_all();
-}
-
-void VideoDecoder::stop() {
-    playing.store(false);
+    // 释放资源
+    av_frame_free(&frame);
+    av_frame_free(&hw_transfer_frame);
 }
 
 void VideoDecoder::audioFrameTimeUpdate(qint64 frameTime) {
     audioFrameTime = frameTime;
-}
-
-void VideoDecoder::seekToPosition(qint64 timestamp) {
-    stop();
-    {
-        // 获取锁后，再操作数据
-        std::lock_guard<std::mutex> lock(mutex);
-        av_seek_frame(fmt_ctx, -1, timestamp, AVSEEK_FLAG_BACKWARD);
-        // 清除解码器上下文缓存
-        avcodec_flush_buffers(dec_ctx);
-    }
-    play();
 }
