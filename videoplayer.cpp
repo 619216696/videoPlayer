@@ -26,6 +26,7 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
 
     // 开始线程解码
     m_decoder.start();
+    setPlaying(true);
     return true;
 }
 

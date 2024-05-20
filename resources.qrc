@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/icon_play.svg</file>
+        <file>assets/icon_stop.svg</file>
+        <file>assets/icon_close.svg</file>
+        <file>assets/icon_minimize.svg</file>
+        <file>assets/icon_restore.svg</file>
+        <file>assets/icon_maximize.svg</file>
+        <file>assets/icon_file.svg</file>
+        <file>assets/icon_fullScreen.svg</file>
+        <file>assets/icon_fullScreenExit.svg</file>
+    </qresource>
+</RCC>

@@ -8,8 +8,11 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Multimedia)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
+qt_add_resources(RESOURCE_ADDED ./resources.qrc)
+
 qt_add_executable(appvideoPlayer
     main.cpp
+    ${RESOURCE_ADDED}
 )
 
 qt_add_qml_module(appvideoPlayer
@@ -21,6 +24,7 @@ qt_add_qml_module(appvideoPlayer
     SOURCES decoderBase.h
     SOURCES audioDecoder.h audioDecoder.cpp
     SOURCES decoder.h decoder.cpp
+    RESOURCES resources.qrc
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
