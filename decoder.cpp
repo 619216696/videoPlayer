@@ -52,10 +52,12 @@ bool Decoder::init(const QString& uri, bool useHardwareDecoder /* = false */) {
         qCritical() << "audioDecoder init failed";
         goto end;
       }
+      m_nAudioSampleRate = m_audioDecoder.getSampleRate();
       // 启动音频解码线程
       m_audioDecoder.start();
       // 连接信号
       connect(&m_audioDecoder, &AudioDecoder::frameTimeUpdate, &m_videoDecoder, &VideoDecoder::audioFrameTimeUpdate);
+      connect(&m_audioDecoder, &AudioDecoder::frameReady, this, &Decoder::audioFrameReady);
   }
 
   // 存在视频流
@@ -68,7 +70,7 @@ bool Decoder::init(const QString& uri, bool useHardwareDecoder /* = false */) {
     // 启动视频解码线程
     m_videoDecoder.start();
     // 连接信号
-    connect(&m_videoDecoder, &VideoDecoder::frameReady, this, &Decoder::frameReady);
+    connect(&m_videoDecoder, &VideoDecoder::frameReady, this, &Decoder::videoFrameReady);
   }
 
   m_nDuration = m_pFmtCtx->duration / AV_TIME_BASE;

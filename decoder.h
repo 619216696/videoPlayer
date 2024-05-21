@@ -26,9 +26,12 @@ public:
     inline qint64 getTotleTime() { return m_nDuration; }
     // 获取当前播放时间 单位秒
     inline qint64 getPlayTime() { return m_audioDecoder.getFrameTime() / AV_TIME_BASE; }
+    // 获取音频采样率
+    inline int getAudioSampleRate() { return m_nAudioSampleRate; }
 
 signals:
-    void frameReady(QImage frame);
+    void videoFrameReady(QImage frame);
+    void audioFrameReady(QByteArray buffer);
 
 protected:
     void run() override;
@@ -45,6 +48,8 @@ private:
     bool m_bPlaying = false;
     // 跳转的时间 单位微秒
     qint64 m_nSeekTime = -1;
+    // 音频采样率
+    int m_nAudioSampleRate = 0;
 };
 
 #endif // DECODER_H

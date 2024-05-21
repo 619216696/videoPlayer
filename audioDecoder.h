@@ -2,7 +2,6 @@
 #define AUDIODECODER_H
 
 #include <QThread>
-#include <QAudioSink>
 #include "./decoderBase.h"
 
 extern "C" {
@@ -16,19 +15,19 @@ public:
     ~AudioDecoder();
 
     bool init(AVStream* stream);
+    inline int getSampleRate() { return m_pDecCtx->sample_rate; }
 
 protected:
     void run() override;
 
 signals:
     void frameTimeUpdate(qint64 frameTime);
+    void frameReady(QByteArray buffer);
 
 private:
     // 开始播放的时间 单位微秒
     qint64 m_nStartTime = 0;
     SwrContext* m_pSwrCtx = nullptr;
-    QAudioSink* m_pAudioSink = nullptr;
-    QIODevice* m_pAudioDevice = nullptr;
 };
 
 #endif // AUDIODECODER_H

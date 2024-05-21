@@ -4,6 +4,7 @@
 #include <QQuickPaintedItem>
 #include <QImage>
 #include "decoder.h"
+#include <QAudioSink>
 
 class VideoPlayer : public QQuickPaintedItem {
     Q_OBJECT
@@ -40,12 +41,15 @@ protected:
     void paint(QPainter* painter) override;
 
 private slots:
-    void onFrameReady(QImage frame);
+    void onVideoFrameReady(QImage frame);
+    void onAudioFrameReady(QByteArray buffer);
 
 private:
     Decoder m_decoder;
     QImage m_image;
     bool m_bPlaying = false;
+    QAudioSink* m_pAudioSink = nullptr;
+    QIODevice* m_pAudioDevice = nullptr;
 };
 
 #endif // VIDEOPLAYER_H

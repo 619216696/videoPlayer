@@ -1,11 +1,9 @@
 #include "audiodecoder.h"
 #include <QDebug>
-#include <QMediaDevices>
 
 AudioDecoder::AudioDecoder() {}
 
 AudioDecoder::~AudioDecoder() {
-    if (m_pAudioSink && !m_pAudioSink->isNull()) m_pAudioSink->stop();
     if (m_pDecCtx) avcodec_free_context(&m_pDecCtx);
     if (m_pSwrCtx) swr_free(&m_pSwrCtx);
 }
@@ -57,28 +55,6 @@ end:
 
 void AudioDecoder::run() {
     m_bPlaying = true;
-
-    // 初始化音频输出
-    QAudioFormat format;
-    // 设置音频格式参数
-    format.setSampleRate(m_pDecCtx->sample_rate);
-    format.setChannelCount(2);
-    // 设置音频样本格式
-    format.setSampleFormat(QAudioFormat::Int16);
-
-    // 创建QAudioSink实例
-    m_pAudioSink = new QAudioSink(QMediaDevices::defaultAudioOutput(), format, this);
-    if (m_pAudioSink->isNull()) {
-        qWarning() << "audio sink is null, cannot play audio.";
-        return;
-    }
-
-    // 开始播放，返回可以写入音频数据的 QIODevice
-    m_pAudioDevice = m_pAudioSink->start();
-    if (!m_pAudioDevice) {
-        qWarning() << "Failed to start audio sink.";
-        return;
-    }
 
     AVFrame* frame = av_frame_alloc();
 
@@ -170,7 +146,7 @@ void AudioDecoder::run() {
             if (frame_count > 0) {
                 int out_buf_size = av_samples_get_buffer_size(nullptr, 2, frame_count, AV_SAMPLE_FMT_S16, 0);
                 QByteArray buffer(reinterpret_cast<char*>(out_buf), out_buf_size);
-                m_pAudioDevice->write(buffer);
+                emit frameReady(buffer);
                 emit frameTimeUpdate(m_nFrameTime);
             }
             av_freep(&out_buf);

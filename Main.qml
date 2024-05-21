@@ -11,7 +11,7 @@ Window {
     visible: true
     title: qsTr("VPlayer")
     color: 'black'
-    flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowSystemMenuHint | Qt.WindowMinMaxButtonsHint
+    flags: Qt.Window | Qt.WindowSystemMenuHint | Qt.WindowMinMaxButtonsHint
 
     // 创建一个定时器，用来获取播放时间，间隔500ms获取一次
     Timer {
