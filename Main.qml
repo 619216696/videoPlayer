@@ -62,6 +62,7 @@ Window {
                 playTimeTimer.start()
                 btnPlay.enabled = true
                 playBar.enabled = true
+                volumnBar.enabled = true
             }
         }
     }
@@ -79,12 +80,19 @@ Window {
         return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`
     }
 
+    // 视频播放组件
+    VideoPlayer {
+        id: videoPlayer
+        height: parent.height
+        width: parent.width
+    }
+
     // 顶部栏
     Rectangle {
         id: titleBar
         width: parent.width
         height: 30
-        color: "transparent"
+        color: "#16000000"  // 黑色背景，20%透明度
         opacity: 1  // 默认显示
 
         Behavior on opacity {
@@ -221,13 +229,6 @@ Window {
         }
     }
 
-    // 视频播放组件
-    VideoPlayer {
-        id: videoPlayer
-        height: parent.height
-        width: parent.width
-    }
-
     // 底部控制栏
     Rectangle {
         id: controlBar
@@ -259,7 +260,7 @@ Window {
             color: '#FFFFFF'
             anchors.bottom: parent.bottom
             anchors.right: parent.right
-            anchors.rightMargin: 32
+            anchors.rightMargin: volumnBar.availableWidth + 44
             anchors.bottomMargin: 8
         }
 
@@ -293,7 +294,6 @@ Window {
                 id: playBar
                 enabled: false
                 Layout.leftMargin: 8
-                Layout.rightMargin: 32
                 Layout.fillWidth: true
                 from: 0 // 设置滑块的最小值
                 to: 0 // 设置滑块的最大值
@@ -330,6 +330,45 @@ Window {
                     console.log('seekToPosition: ', second)
                     videoPlayer.seekToPosition(second)
                     playTimeTimer.start()
+                }
+            }
+
+            Slider {
+                id: volumnBar
+                enabled: false
+                Layout.leftMargin: 8
+                Layout.rightMargin: 32
+                from: 0 // 设置滑块的最小值
+                to: 100 // 设置滑块的最大值
+                value: videoPlayer.volumn // 设置滑块的当前值
+                background: Rectangle {
+                    x: volumnBar.leftPadding
+                    y: volumnBar.topPadding + volumnBar.availableHeight / 2 - height / 2
+                    implicitWidth: 40
+                    implicitHeight: 4
+                    width: volumnBar.availableWidth
+                    height: implicitHeight
+                    radius: 2
+                    color: "#797a7b"
+
+                    Rectangle {
+                        width: volumnBar.visualPosition * parent.width
+                        height: parent.height
+                        color: "#edeeee"
+                        radius: 2
+                    }
+                }
+
+                handle: Rectangle {
+                    x: volumnBar.leftPadding + volumnBar.visualPosition * (volumnBar.availableWidth - width)
+                    y: volumnBar.topPadding + volumnBar.availableHeight / 2 - height / 2
+                    implicitWidth: 12
+                    implicitHeight: 12
+                    radius: 6
+                }
+
+                onMoved: {
+                    videoPlayer.volumn = this.value
                 }
             }
         }

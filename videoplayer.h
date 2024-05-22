@@ -28,14 +28,15 @@ public:
 
     Q_PROPERTY(bool playing MEMBER m_bPlaying WRITE setPlaying NOTIFY playingChange)
 
-    void setPlaying(bool playing) {
-        if (playing == m_bPlaying) return;
-        m_bPlaying = playing;
-        emit playingChange();
-    }
+    void setPlaying(bool playing);
+
+    Q_PROPERTY(int volumn MEMBER m_nVolumn WRITE setVolumn NOTIFY volumnChanged)
+
+    void setVolumn(int volumn);
 
 signals:
     void playingChange();
+    void volumnChanged(int volumn);
 
 protected:
     void paint(QPainter* painter) override;
@@ -43,6 +44,7 @@ protected:
 private slots:
     void onVideoFrameReady(QImage frame);
     void onAudioFrameReady(QByteArray buffer);
+    void onVolunmChange(int volumn);
 
 private:
     Decoder m_decoder;
@@ -50,6 +52,8 @@ private:
     bool m_bPlaying = false;
     QAudioSink* m_pAudioSink = nullptr;
     QIODevice* m_pAudioDevice = nullptr;
+    // 音量
+    int m_nVolumn = 80;
 };
 
 #endif // VIDEOPLAYER_H

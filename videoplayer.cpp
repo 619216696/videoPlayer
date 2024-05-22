@@ -24,9 +24,6 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
         return false;
     }
 
-    connect(&m_decoder, &Decoder::videoFrameReady, this, &VideoPlayer::onVideoFrameReady);
-    connect(&m_decoder, &Decoder::audioFrameReady, this, &VideoPlayer::onAudioFrameReady);
-
     // 初始化音频输出
     QAudioFormat format;
     // 设置音频格式参数
@@ -42,12 +39,19 @@ bool VideoPlayer::loadVideo(const QString& filePath, bool useHw) {
         return false;
     }
 
+    // 设置初始音量
+    onVolunmChange(m_nVolumn);
+
     // 开始播放，返回可以写入音频数据的 QIODevice
     m_pAudioDevice = m_pAudioSink->start();
     if (!m_pAudioDevice) {
         qWarning() << "Failed to start audio sink.";
         return false;
     }
+
+    connect(&m_decoder, &Decoder::videoFrameReady, this, &VideoPlayer::onVideoFrameReady);
+    connect(&m_decoder, &Decoder::audioFrameReady, this, &VideoPlayer::onAudioFrameReady);
+    connect(this, &VideoPlayer::volumnChanged, this, &VideoPlayer::onVolunmChange);
 
     // 开始线程解码
     m_decoder.start();
@@ -77,4 +81,22 @@ void VideoPlayer::onVideoFrameReady(QImage frame) {
 
 void VideoPlayer::onAudioFrameReady(QByteArray buffer) {
     m_pAudioDevice->write(buffer);
+}
+
+void VideoPlayer::onVolunmChange(int volumn) {
+    qreal linearVolume = QAudio::convertVolume(volumn / qreal(100.0), QAudio::LogarithmicVolumeScale, QAudio::LinearVolumeScale);
+    m_pAudioSink->setVolume(linearVolume);
+}
+
+void VideoPlayer::setPlaying(bool playing) {
+    if (playing == m_bPlaying) return;
+    m_bPlaying = playing;
+    emit playingChange();
+}
+
+
+void VideoPlayer::setVolumn(int volumn) {
+    if (volumn == m_nVolumn) return;
+    m_nVolumn = volumn;
+    emit volumnChanged(volumn);
 }
