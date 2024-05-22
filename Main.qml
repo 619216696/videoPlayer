@@ -6,8 +6,8 @@ import QtQuick.Layouts 1.2
 
 Window {
     id: mainWindow
-    width: 640
-    height: 480
+    width: 800
+    height: 600
     visible: true
     title: qsTr("VPlayer")
     color: 'black'
@@ -27,6 +27,7 @@ Window {
         }
     }
 
+    // 顶部底部栏显示隐藏
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
@@ -47,6 +48,30 @@ Window {
             }
         }
     }
+
+    // 窗口拖动
+    MouseArea {
+       anchors.fill: parent
+       // 启用拖动
+       drag.target: mainWindow
+       drag.axis: Drag.XAndYAxis
+
+       property var dragStartPosx
+       property var dragStartPosy
+       onPressed: {
+           dragStartPosx = mouse.x
+           dragStartPosy = mouse.y
+       }
+
+       // 处理拖动事件
+       onPositionChanged: {
+           // 全屏时不拖动
+           if (mainWindow.visibility === Window.FullScreen) return
+           // 当鼠标拖动时，更新窗口的位置
+           mainWindow.x = mainWindow.x + mouse.x - dragStartPosx
+           mainWindow.y = mainWindow.y + mouse.y - dragStartPosy
+       }
+   }
 
     FileDialog {
         id: fileDialog
