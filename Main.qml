@@ -6,10 +6,10 @@ import QtQuick.Layouts 1.2
 
 Window {
     id: mainWindow
-    width: 800
-    height: 600
+    width: 960
+    height: 540
     visible: true
-    title: qsTr("VPlayer")
+    title: qsTr("Video Player Plus")
     color: 'black'
     flags: Qt.Window | Qt.WindowSystemMenuHint | Qt.WindowMinMaxButtonsHint
 

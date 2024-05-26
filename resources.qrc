@@ -9,5 +9,6 @@
         <file>assets/icon_file.svg</file>
         <file>assets/icon_fullScreen.svg</file>
         <file>assets/icon_fullScreenExit.svg</file>
+        <file>assets/icon512.png</file>
     </qresource>
 </RCC>
