@@ -5,6 +5,8 @@
 VideoPlayerPlus 是一个基于 QML 6.5 和 FFmpeg 6 开发的视频播放器项目，旨在提供流畅的视频播放体验及丰富的播放控制功能。本项目不仅支持基本的播放、暂停、进度控制等功能，还计划实现硬件视频解码、OpenGL渲染、倍速播放等高级特性，适合于追求高性能和跨平台兼容性的应用开发场景。
 
 ## 功能特性
+![image](https://github.com/619216696/videoPlayer/assets/34761351/e708c928-b951-4496-a159-fc60c8607b43)
+![image](https://github.com/619216696/videoPlayer/assets/34761351/2de5ee03-04d9-41ce-8ad8-1854352be9ef)
 
 - **已有功能**：
   - 播放本地文件
