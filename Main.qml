@@ -58,20 +58,20 @@ Window {
 
        property var dragStartPosx
        property var dragStartPosy
-       onPressed: {
+       onPressed: mouse => {
            dragStartPosx = mouse.x
            dragStartPosy = mouse.y
        }
 
        // 处理拖动事件
-       onPositionChanged: {
+       onPositionChanged: mouse => {
            // 全屏时不拖动
            if (mainWindow.visibility === Window.FullScreen) return
            // 当鼠标拖动时，更新窗口的位置
            mainWindow.x = mainWindow.x + mouse.x - dragStartPosx
            mainWindow.y = mainWindow.y + mouse.y - dragStartPosy
        }
-   }
+    }
 
     FileDialog {
         id: fileDialog
@@ -122,7 +122,7 @@ Window {
 
         Behavior on opacity {
             OpacityAnimator {
-                duration: 1000  // 淡出效果持续时间
+                duration: 500  // 淡出效果持续时间
             }
         }
 
@@ -196,25 +196,25 @@ Window {
             }
 
             // 自定义最大化/还原按钮
-            Rectangle {
-                width: 16
-                height: 16
-                color: "transparent"
-                Image {
-                    anchors.centerIn: parent
-                    source: mainWindow.visibility === Window.Maximized ? "qrc:/assets/icon_restore.svg" : "qrc:/assets/icon_maximize.svg"
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        if (mainWindow.visibility === Window.Maximized) {
-                            mainWindow.showNormal()
-                        } else {
-                            mainWindow.showMaximized()
-                        }
-                    }
-                }
-            }
+            // Rectangle {
+            //     width: 16
+            //     height: 16
+            //     color: "transparent"
+            //     Image {
+            //         anchors.centerIn: parent
+            //         source: mainWindow.visibility === Window.Maximized ? "qrc:/assets/icon_restore.svg" : "qrc:/assets/icon_maximize.svg"
+            //     }
+            //     MouseArea {
+            //         anchors.fill: parent
+            //         onClicked: {
+            //             if (mainWindow.visibility === Window.Maximized) {
+            //                 mainWindow.showNormal()
+            //             } else {
+            //                 mainWindow.showMaximized()
+            //             }
+            //         }
+            //     }
+            // }
 
             // 全屏按钮
             Rectangle {
@@ -265,7 +265,7 @@ Window {
 
         Behavior on opacity {
             OpacityAnimator {
-                duration: 1000  // 淡出效果持续时间
+                duration: 500  // 淡出效果持续时间
             }
         }
 
